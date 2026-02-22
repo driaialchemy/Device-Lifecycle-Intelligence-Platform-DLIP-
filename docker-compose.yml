@@ -1,0 +1,42 @@
+services:
+  dp-db:
+    image: postgres:16
+    container_name: dp-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: devicepassport
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d devicepassport"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - dp_pgdata:/var/lib/postgresql/data
+
+  dp-app:
+    build: .
+    container_name: dp-app
+    environment:
+      DP_DATABASE_URL: postgresql://postgres:postgres@dp-db:5432/devicepassport
+      DP_SEED_XLSX: /app/seed/devicepassport_catalog.xlsx
+      DP_SEED_SHEET: devices
+      STREAMLIT_SERVER_PORT: "8501"
+      STREAMLIT_SERVER_ADDRESS: "0.0.0.0"
+
+      # LLM keys (required for your dual-provider debate)
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-pro}
+
+    depends_on:
+      dp-db:
+        condition: service_healthy
+    ports:
+      - "8501:8501"
+
+volumes:
+  dp_pgdata:
