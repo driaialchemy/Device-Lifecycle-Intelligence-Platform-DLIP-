@@ -41,6 +41,8 @@ class MetaReviewer:
         fused_narrative = provisional_decision.get("fused_narrative", "")
         fused_uncertainty = provisional_decision.get("fused_uncertainty", 0.5)
         ranking = provisional_decision.get("ranking", [])
+        if not isinstance(ranking, list):
+            ranking = []
 
         notes = {
             "reflection_findings": [],
@@ -110,7 +112,14 @@ class MetaReviewer:
         """
         Checks if risk ratings diverge heavily across domains.
         """
-        ratings = [r.get("risk_rating", "").lower() for r in ranking]
+        if not ranking:
+            return ""
+
+        ratings = [
+            str(r.get("risk_rating", "")).lower()
+            for r in ranking
+            if isinstance(r, dict)
+        ]
 
         if "critical" in ratings and "low" in ratings:
             return "Large cross-domain risk mismatch detected (Critical vs Low)."
@@ -158,8 +167,15 @@ class MetaReviewer:
 
         # If bottom-ranked opinions scored extremely low, suggests disagreement
         if ranking:
-            scores = [r["score_breakdown"]["total_score"] for r in ranking]
-            if max(scores) - min(scores) > 12:
+            scores = [
+                r.get("score_breakdown", {}).get("total_score")
+                for r in ranking
+                if isinstance(r, dict)
+            ]
+            numeric_scores = [
+                s for s in scores if isinstance(s, (int, float))
+            ]
+            if numeric_scores and max(numeric_scores) - min(numeric_scores) > 12:
                 adjusted += 0.05
 
         # Clamp to [0,1]
