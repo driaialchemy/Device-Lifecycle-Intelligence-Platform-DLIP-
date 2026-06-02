@@ -36,7 +36,7 @@ try:
     init_db_schema()
 except Exception as e:
     st.error(f"🛑 **Database Connection Failed**\n\n{e}")
-    st.info("Check DP_DATABASE_URL and Docker.")
+    st.info("Check DATABASE_URL and Docker.")
     st.stop()
 
 # --- HELPERS ---

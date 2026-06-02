@@ -12,8 +12,12 @@ from psycopg2.extras import Json, RealDictCursor
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env", override=True)
 
-# CLOUD READY: Looks for environment variable first, falls back to localhost
-DB_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/device_passport")
+# Prefer the documented env var, but keep the older Docker name as a fallback.
+DB_URL = (
+    os.getenv("DATABASE_URL")
+    or os.getenv("DP_DATABASE_URL")
+    or "postgresql://postgres:postgres@localhost:5432/device_passport"
+)
 
 
 def get_conn():
