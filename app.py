@@ -1,4 +1,5 @@
 ﻿import json
+import os
 
 import streamlit as st
 
@@ -108,11 +109,24 @@ if role == "Operator":
     with tab2:
         st.subheader("Multi-Agent Compliance Audit")
 
-        if st.button("🚀 Start Audit", type="primary"):
+        missing_llm_keys = [
+            key for key in ("OPENAI_API_KEY", "GEMINI_API_KEY") if not os.getenv(key)
+        ]
+        if missing_llm_keys:
+            st.warning(
+                "Set these environment variables in .env before running an audit: "
+                + ", ".join(missing_llm_keys)
+            )
+
+        if st.button("🚀 Start Audit", type="primary", disabled=bool(missing_llm_keys)):
             with st.spinner("Agents are negotiating..."):
-                orch = Orchestrator()
-                result = orch.run_device_audit(payload)
-                persist_run(result["run_id"], device_id)
+                try:
+                    orch = Orchestrator()
+                    result = orch.run_device_audit(payload)
+                    persist_run(result["run_id"], device_id)
+                except Exception as exc:
+                    st.error(f"Audit failed: {exc}")
+                    st.stop()
 
             st.success(f"Audit Complete! Run ID: {result['run_id']}")
 

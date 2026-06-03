@@ -16,19 +16,23 @@ cp .env.example .env
 Edit `.env` and set:
 - `OPENAI_API_KEY`
 - `GEMINI_API_KEY`
-- `DATABASE_URL` (for your local Postgres)
+- `DATABASE_URL` if you are not using the bundled Docker database
 
 ## 3. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-## 4. Start PostgreSQL and create DB
-```sql
-CREATE DATABASE device_passport;
+## 4. Start PostgreSQL
+The quickest local path is the bundled Docker database. It uses host port `5434`
+by default so it does not conflict with an existing local PostgreSQL on `5432`.
+
+```bash
+docker compose up -d dp-db
 ```
 
-Use the credentials from your `DATABASE_URL`.
+If you prefer your own PostgreSQL server, create the database named in
+`DATABASE_URL` and update `.env` with your credentials.
 
 ## 5. Seed database (optional if already populated)
 ```bash

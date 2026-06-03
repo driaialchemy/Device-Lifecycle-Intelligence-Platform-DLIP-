@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 import pandas as pd
 
 from db_access import init_db_schema, count_devices, bulk_upsert_devices_from_dataframe
@@ -13,7 +14,9 @@ def main() -> int:
         print(f"[seed_db] devices already present: {existing}. Skipping seed.")
         return 0
 
-    seed_xlsx = os.getenv("DP_SEED_XLSX", "/app/seed/devicepassport_catalog.xlsx")
+    base_dir = Path(__file__).resolve().parent
+    default_seed_xlsx = base_dir / "seed" / "devicepassport_catalog.xlsx"
+    seed_xlsx = os.getenv("DP_SEED_XLSX", str(default_seed_xlsx))
     seed_sheet = os.getenv("DP_SEED_SHEET", "devices")
 
     if not os.path.exists(seed_xlsx):

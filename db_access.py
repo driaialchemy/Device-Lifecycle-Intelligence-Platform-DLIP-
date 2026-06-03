@@ -16,7 +16,7 @@ load_dotenv(BASE_DIR / ".env", override=True)
 DB_URL = (
     os.getenv("DATABASE_URL")
     or os.getenv("DP_DATABASE_URL")
-    or "postgresql://postgres:postgres@localhost:5432/device_passport"
+    or "postgresql://postgres:postgres@localhost:5434/devicepassport"
 )
 
 
