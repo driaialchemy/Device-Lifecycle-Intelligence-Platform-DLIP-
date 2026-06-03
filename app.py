@@ -1,6 +1,7 @@
 ﻿import json
 import os
 
+import pandas as pd
 import streamlit as st
 
 from db_access import (
@@ -55,6 +56,24 @@ def format_flags(title: str, data):
         else:
             icon, text = "🔹", str(val)
         st.markdown(f"{icon} **{label}**: {text}")
+
+
+def device_registry_dataframe(devices: list[dict]) -> pd.DataFrame:
+    rows = []
+    for device in devices:
+        payload = device.get("device_payload") or {}
+        rows.append(
+            {
+                "device_id": device.get("device_id"),
+                "brand": payload.get("brand"),
+                "model": payload.get("model"),
+                "region": payload.get("region"),
+                "firmware_version": payload.get("firmware_version"),
+                "purchase_date": payload.get("purchase_date"),
+                "serial_number": payload.get("serial_number"),
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 # ------------------------------------------------------------------------------
@@ -190,9 +209,19 @@ elif role == "Engineering":
     count = count_devices()
     st.metric("Total Devices in Registry", count)
 
-    st.subheader("Raw Database View")
+    st.subheader("Device Registry")
+    devices = list_devices(limit=100)
+    if devices:
+        st.dataframe(device_registry_dataframe(devices), use_container_width=True)
+    else:
+        st.warning("No devices found in device_registry. Run the seed script.")
+
+    st.subheader("Recent Audit Runs")
     runs = fetch_recent_runs(limit=10)
-    st.dataframe(runs)
+    if not runs.empty:
+        st.dataframe(runs, use_container_width=True)
+    else:
+        st.info("No audit runs yet. Start an audit from the Operator view to populate this table.")
 
 # === EXECUTIVE VIEW ===
 elif role == "Executive":

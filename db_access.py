@@ -94,7 +94,11 @@ def list_devices(limit: int | None = None) -> list[dict[str, Any]]:
     with get_conn() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, params)
-            return [dict(row) for row in cur.fetchall()]
+            rows = [dict(row) for row in cur.fetchall()]
+
+    for row in rows:
+        row["device_payload"] = _normalize_device_payload(row.get("device_payload"))
+    return rows
 
 
 def get_device_payload(did: str) -> dict[str, Any]:
@@ -110,7 +114,34 @@ def get_device_payload(did: str) -> dict[str, Any]:
     if not row:
         return {}
     payload = row.get("device_payload")
-    return payload if isinstance(payload, dict) else (payload or {})
+    return _normalize_device_payload(payload if isinstance(payload, dict) else (payload or {}))
+
+
+def _normalize_device_payload(payload: Any) -> dict[str, Any]:
+    """Normalize seed workbook payload fields into the app's expected shape."""
+    if not isinstance(payload, dict):
+        return {}
+
+    normalized = dict(payload)
+    json_field_map = {
+        "gdpr_flags_json": "gdpr_flags",
+        "r2v3_flags_json": "r2v3_flags",
+        "audit_trail_json": "audit_trail",
+    }
+
+    for source_key, target_key in json_field_map.items():
+        if target_key in normalized or source_key not in normalized:
+            continue
+        raw_value = normalized.get(source_key)
+        if isinstance(raw_value, str):
+            try:
+                normalized[target_key] = json.loads(raw_value)
+            except json.JSONDecodeError:
+                normalized[target_key] = {}
+        elif isinstance(raw_value, dict):
+            normalized[target_key] = raw_value
+
+    return normalized
 
 
 def fetch_runs_for_device(did: str) -> pd.DataFrame:
