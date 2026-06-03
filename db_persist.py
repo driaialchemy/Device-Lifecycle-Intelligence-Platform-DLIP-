@@ -44,6 +44,64 @@ def persist_run(
         conn.commit()
 
 
+def persist_audit_event(run_id: str, event_type: str, payload_json: Dict[str, Any]) -> None:
+    """Append one structured audit event to the UI-facing audit log table."""
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO audit_log (run_id, event_type, payload_json)
+                VALUES (%s, %s, %s);
+                """,
+                (run_id, event_type, Json(payload_json or {})),
+            )
+        conn.commit()
+
+
+def persist_audit_result(result: Dict[str, Any], device_id: str) -> None:
+    """Persist the major sections of an orchestrator result for dashboards and chain views."""
+    run_id = str(result.get("run_id", ""))
+    if not run_id:
+        raise ValueError("result must include run_id")
+
+    details = result.get("details") or {}
+    arbiter = details.get("arb") or {}
+    meta = details.get("meta") or {}
+
+    events = [
+        ("ROUND1", details.get("r1") or {}),
+        ("ROUND2", details.get("r2") or {}),
+        ("COVE", details.get("cove") or {}),
+        ("ARBITER", arbiter),
+        ("META", meta),
+        (
+            "FINAL",
+            {
+                "run_id": run_id,
+                "device_id": device_id,
+                "arbiter_risk_rating": arbiter.get("risk_rating"),
+                "final_uncertainty": result.get("final_uncertainty"),
+                "final_narrative": result.get("final_narrative"),
+                "meta_notes": meta.get("notes") if isinstance(meta, dict) else {},
+                "details": details,
+            },
+        ),
+    ]
+
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM audit_log WHERE run_id = %s;", (run_id,))
+            for event_type, payload in events:
+                cur.execute(
+                    """
+                    INSERT INTO audit_log (run_id, event_type, payload_json)
+                    VALUES (%s, %s, %s);
+                    """,
+                    (run_id, event_type, Json(payload or {})),
+                )
+        conn.commit()
+
+
 def persist_agent_output(
     run_id: str,
     device_id: str,

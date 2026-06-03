@@ -114,7 +114,9 @@ def get_device_payload(did: str) -> dict[str, Any]:
     if not row:
         return {}
     payload = row.get("device_payload")
-    return _normalize_device_payload(payload if isinstance(payload, dict) else (payload or {}))
+    normalized = _normalize_device_payload(payload if isinstance(payload, dict) else (payload or {}))
+    normalized.setdefault("device_id", did)
+    return normalized
 
 
 def _normalize_device_payload(payload: Any) -> dict[str, Any]:
@@ -173,6 +175,49 @@ def fetch_audit_chain(rid: str) -> pd.DataFrame:
                 ORDER BY id ASC
                 """,
                 (rid,),
+            )
+            rows = cur.fetchall()
+    return pd.DataFrame(rows)
+
+
+def fetch_audit_events(limit: int = 200) -> pd.DataFrame:
+    """Return recent audit log events, newest-first."""
+    safe_limit = max(int(limit), 1)
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT id, run_id, event_type, payload_json, created_at
+                FROM audit_log
+                ORDER BY created_at DESC, id DESC
+                LIMIT %s
+                """,
+                (safe_limit,),
+            )
+            rows = cur.fetchall()
+    return pd.DataFrame(rows)
+
+
+def fetch_recent_runs_with_event_counts(limit: int = 50) -> pd.DataFrame:
+    """Return recent runs enriched with structured audit event counts."""
+    safe_limit = max(int(limit), 1)
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    r.run_id,
+                    r.device_id,
+                    r.created_at,
+                    COUNT(a.id)::int AS audit_events,
+                    MAX(a.created_at) AS latest_event_at
+                FROM runs r
+                LEFT JOIN audit_log a ON a.run_id = r.run_id
+                GROUP BY r.run_id, r.device_id, r.created_at
+                ORDER BY r.created_at DESC, r.run_id DESC
+                LIMIT %s
+                """,
+                (safe_limit,),
             )
             rows = cur.fetchall()
     return pd.DataFrame(rows)
@@ -271,19 +316,40 @@ def compute_arbiter_risk_distribution(days: int = 30) -> pd.DataFrame:
     query = """
     WITH recent AS (
         SELECT
+            run_id,
+            event_type,
+            created_at,
             COALESCE(
                 NULLIF(payload_json->>'arbiter_risk_rating', ''),
                 NULLIF(payload_json#>>'{final_consensus,arbiter_risk_rating}', ''),
                 NULLIF(payload_json#>>'{final,arbiter_risk_rating}', ''),
                 NULLIF(payload_json#>>'{arbiter,risk_rating}', ''),
+                NULLIF(payload_json#>>'{details,arb,risk_rating}', ''),
                 NULLIF(payload_json->>'risk_rating', '')
             ) AS arbiter_risk_rating
         FROM audit_log
         WHERE created_at >= NOW() - make_interval(days => %s)
+    ),
+    ranked AS (
+        SELECT
+            run_id,
+            arbiter_risk_rating,
+            ROW_NUMBER() OVER (
+                PARTITION BY run_id
+                ORDER BY
+                    CASE event_type
+                        WHEN 'FINAL' THEN 0
+                        WHEN 'ARBITER' THEN 1
+                        ELSE 2
+                    END,
+                    created_at DESC
+            ) AS rn
+        FROM recent
+        WHERE arbiter_risk_rating IS NOT NULL
     )
     SELECT arbiter_risk_rating, COUNT(*)::int AS count
-    FROM recent
-    WHERE arbiter_risk_rating IS NOT NULL
+    FROM ranked
+    WHERE rn = 1
     GROUP BY arbiter_risk_rating
     ORDER BY count DESC, arbiter_risk_rating ASC;
     """
