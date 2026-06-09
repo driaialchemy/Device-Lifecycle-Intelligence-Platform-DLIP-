@@ -2,6 +2,27 @@
 
 Streamlit app for multi-agent device compliance auditing (R2v3, GDPR, Sensor), with PostgreSQL-backed persistence.
 
+## For A Novice Reader
+
+DLIP is a dashboard for checking electronic devices, such as smart watches,
+before they are reused, repaired, recycled, or escalated for review. A user can
+pick a device, choose the kind of review they need, and see whether the device
+has compliance, privacy, repair, sensor, or future-condition risks.
+
+The dashboard has different views for different people: operators who run daily
+checks, engineers who inspect technical risk and forecasts, and executives who
+need a concise portfolio-level risk picture.
+
+## For A Technical Reader
+
+DLIP is a Streamlit application backed by PostgreSQL, with local Docker support
+for the database and seed data from the checked-in device passport workbook.
+It stores device registry records and structured audit events, exposes
+role-specific AI analysis flows, and includes forecasting helpers for battery
+degradation plus sensor waveform and Fourier/Welch spectrum analysis. Local
+configuration is supplied through ignored `.env` files for AI provider keys and
+database connection settings.
+
 ## Dashboard Capabilities
 
 - Operator, Engineering, and Executive views can each select a device and run role-specific AI analysis.
